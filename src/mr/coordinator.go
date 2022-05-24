@@ -130,7 +130,7 @@ func (c *Coordinator) getReduceTask() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for i, status := range c.mapTasks {
+	for i, status := range c.reduceTask {
 		if status == TaskWait {
 			c.reduceTask[i] = TaskRunning
 			c.reduceStart[i] = time.Now()
@@ -138,6 +138,7 @@ func (c *Coordinator) getReduceTask() int {
 		}
 	}
 	c.checkReduce()
+	fmt.Println(c.reduceTask)
 	return -1
 }
 
