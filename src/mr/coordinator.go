@@ -105,11 +105,11 @@ func (c *Coordinator) ReduceTaskFinish(args *ReduceArg, reply *ReduceReply) erro
 }
 
 func (c *Coordinator) getMapTask() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.mapTaskclosed || c.closed {
 		return -2
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	for i, status := range c.mapTasks {
 		if status == TaskWait {
 			c.mapTasks[i] = TaskRunning
@@ -124,12 +124,11 @@ func (c *Coordinator) getMapTask() int {
 }
 
 func (c *Coordinator) getReduceTask() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.closed {
 		return -2
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	for i, status := range c.reduceTask {
 		if status == TaskWait {
 			c.reduceTask[i] = TaskRunning
