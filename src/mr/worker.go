@@ -140,7 +140,12 @@ func CallReduceTask(reducef func(string, []string) string) error {
 		}
 		var kva []KeyValue
 		for i := 0; i < reply.NMap; i++ {
-			Outfile, err := os.Open(fmt.Sprintf("mr-%d-%d", i, reply.ID))
+			filename := fmt.Sprintf("mr-%d-%d", i, reply.ID)
+			_, err := os.Stat(filename)
+			if err != nil {
+				continue
+			}
+			Outfile, err := os.Open(filename)
 			if err != nil {
 				panic(err)
 			}
@@ -183,7 +188,7 @@ func CallReduceTask(reducef func(string, []string) string) error {
 		}
 	}
 
-	return fmt.Errorf("reduce task failed")
+	return nil
 }
 
 //
