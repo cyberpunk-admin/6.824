@@ -105,6 +105,8 @@ func CallMapTask(mapf func(string, string) []KeyValue) error {
 				panic(err)
 			}
 		}
+		args.ID = reply.ID
+		args.Filename = reply.Filename
 		if !call("Coordinator.MapTaskFinish", &args, &reply) {
 			for _, tf := range tempFiles {
 				os.Remove(tf.Name())
@@ -167,6 +169,7 @@ func CallReduceTask(reducef func(string, []string) string) error {
 			fmt.Fprintf(outFile, "%v %v\n", kva[i].Key, output)
 			i = j
 		}
+		args.ID = reply.ID
 		if !call("Coordinator.ReduceTaskFinish", &args, &reply) {
 			os.Remove(outFile.Name())
 		} else {

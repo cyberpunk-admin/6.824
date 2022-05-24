@@ -62,8 +62,8 @@ func (c *Coordinator) AskForMapTask(args *MapReply, reply *MapReply) error {
 func (c *Coordinator) MapTaskFinish(args *MapArg, reply *MapReply) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	fmt.Println("[Map] a map file complete", reply.Filename, reply.ID)
-	c.mapTasks[reply.ID] = TaskComplete
+	fmt.Println("[Map] a map file complete", args.Filename, args.ID)
+	c.mapTasks[args.ID] = TaskComplete
 	fmt.Println(c.mapTasks)
 	for _, st := range c.mapTasks {
 		if st != TaskComplete {
