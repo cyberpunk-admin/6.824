@@ -446,7 +446,7 @@ text {
           })
         })
         const linearizationPositions = newArray(lgid, () => []) // [[xpos]]
-        // Okay, now we're ready to do the left-to-right scan.
+        // OKay, now we're ready to do the left-to-right scan.
         // Solve timestamp -> xPos.
         let eventIndex = 0
         xPos[sortedTimestamps[0]] = 0 // positions start at 0

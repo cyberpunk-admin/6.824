@@ -1,10 +1,16 @@
 package mr
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"sort"
+	"time"
+)
 import "log"
 import "net/rpc"
 import "hash/fnv"
-
 
 //
 // Map functions return a slice of KeyValue.
@@ -13,6 +19,14 @@ type KeyValue struct {
 	Key   string
 	Value string
 }
+
+// for sorting by key.
+type ByKey []KeyValue
+
+// for sorting by key.
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 //
 // use ihash(key) % NReduce to choose the reduce
@@ -24,18 +38,32 @@ func ihash(key string) int {
 	return int(h.Sum32() & 0x7fffffff)
 }
 
-
 //
 // main/mrworker.go calls this function.
 //
 func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
+	if err := CallMapTask(mapf); err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := CallReduceTask(reducef); err != nil {
+		fmt.Println(err)
+		return
+	}
+}
 
-	// Your worker implementation here.
-
-	// uncomment to send the Example RPC to the coordinator.
-	// CallExample()
-
+func readContent(filename string) string {
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatalf("cannot open %v", filename)
+	}
+	content, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Fatalf("cannot read %v", filename)
+	}
+	file.Close()
+	return string(content)
 }
 
 //
@@ -43,28 +71,111 @@ func Worker(mapf func(string, string) []KeyValue,
 //
 // the RPC argument and reply types are defined in rpc.go.
 //
-func CallExample() {
-
-	// declare an argument structure.
-	args := ExampleArgs{}
-
-	// fill in the argument(s).
-	args.X = 99
-
-	// declare a reply structure.
-	reply := ExampleReply{}
-
-	// send the RPC request, wait for the reply.
-	// the "Coordinator.Example" tells the
-	// receiving server that we'd like to call
-	// the Example() method of struct Coordinator.
-	ok := call("Coordinator.Example", &args, &reply)
-	if ok {
-		// reply.Y should be 100.
-		fmt.Printf("reply.Y %v\n", reply.Y)
-	} else {
-		fmt.Printf("call failed!\n")
+func CallMapTask(mapf func(string, string) []KeyValue) error {
+	for {
+		args := MapArg{}
+		reply := MapReply{}
+		call("Coordinator.AskForMapTask", &args, &reply)
+		if reply.ID == -2 {
+			break
+		}
+		if reply.ID == -1 {
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		fmt.Println("[Map] now read file ", reply.Filename)
+		contents := readContent(reply.Filename)
+		kvs := mapf(reply.Filename, contents)
+		tempFiles := map[int]*os.File{}
+		for _, kv := range kvs {
+			rId := ihash(kv.Key) % reply.NReduce
+			var tf *os.File
+			var err error
+			if _, ok := tempFiles[rId]; !ok {
+				tf, err = ioutil.TempFile("./", "mr-temp-*")
+				tempFiles[rId] = tf
+				if err != nil {
+					panic(err)
+				}
+			} else {
+				tf = tempFiles[rId]
+			}
+			err = json.NewEncoder(tf).Encode(&kv)
+			if err != nil {
+				panic(err)
+			}
+		}
+		if !call("Coordinator.MapTaskFinish", &args, &reply) {
+			for _, tf := range tempFiles {
+				os.Remove(tf.Name())
+			}
+		} else {
+			for rid, tf := range tempFiles {
+				os.Rename(tf.Name(), fmt.Sprintf("mr-%d-%d", reply.ID, rid))
+				tf.Close()
+			}
+		}
 	}
+
+	return fmt.Errorf("map task failed")
+}
+
+func CallReduceTask(reducef func(string, []string) string) error {
+	for {
+		args := ReduceArg{}
+		reply := ReduceReply{}
+
+		call("Coordinator.AskReduceTask", &args, &reply)
+		if reply.ID == -2 {
+			break
+		}
+		if reply.ID == -1 {
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		var kva []KeyValue
+		for i := 0; i < reply.NMap; i++ {
+			Outfile, err := os.Open(fmt.Sprintf("mr-%d-%d", i, reply.ID))
+			if err != nil {
+				panic(err)
+			}
+			dec := json.NewDecoder(Outfile)
+			for {
+				var kv KeyValue
+				if err := dec.Decode(&kv); err != nil {
+					break
+				}
+				kva = append(kva, kv)
+			}
+			Outfile.Close()
+		}
+
+		sort.Sort(ByKey(kva))
+		outFile, _ := ioutil.TempFile("./", "mr-out-*")
+		i := 0
+		for i < len(kva) {
+			j := i + 1
+			for j < len(kva) && kva[j].Key == kva[i].Key {
+				j++
+			}
+			var values []string
+			for k := i; k < j; k++ {
+				values = append(values, kva[k].Value)
+			}
+			output := reducef(kva[i].Key, values)
+
+			fmt.Fprintf(outFile, "%v %v\n", kva[i].Key, output)
+			i = j
+		}
+		if !call("Coordinator.ReduceTaskFinish", &args, &reply) {
+			os.Remove(outFile.Name())
+		} else {
+			os.Rename(outFile.Name(), fmt.Sprintf("mr-out-%d", reply.ID))
+			outFile.Close()
+		}
+	}
+
+	return fmt.Errorf("reduce task failed")
 }
 
 //

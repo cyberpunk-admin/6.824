@@ -4,7 +4,7 @@ import "time"
 
 func CheckOperations(model Model, history []Operation) bool {
 	res, _ := checkOperations(model, history, false, 0)
-	return res == Ok
+	return res == OK
 }
 
 // timeout = 0 means no timeout
@@ -22,7 +22,7 @@ func CheckOperationsVerbose(model Model, history []Operation, timeout time.Durat
 
 func CheckEvents(model Model, history []Event) bool {
 	res, _ := checkEvents(model, history, false, 0)
-	return res == Ok
+	return res == OK
 }
 
 // timeout = 0 means no timeout

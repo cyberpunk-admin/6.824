@@ -346,7 +346,7 @@ loop:
 		if timedOut {
 			result = Unknown
 		} else {
-			result = Ok
+			result = OK
 		}
 	}
 	return result, info

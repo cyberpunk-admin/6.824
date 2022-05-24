@@ -72,6 +72,6 @@ type CheckResult string
 
 const (
 	Unknown CheckResult = "Unknown" // timed out
-	Ok                  = "Ok"
+	OK                  = "OK"
 	Illegal             = "Illegal"
 )
