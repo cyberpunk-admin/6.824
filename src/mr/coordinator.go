@@ -110,11 +110,11 @@ func (c *Coordinator) getMapTask() int {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	for i, status := range c.mapTasks {
 		if status == TaskWait {
 			c.mapTasks[i] = TaskRunning
 			c.mapStart[i] = time.Now()
+			fmt.Println("generate map task id ", i)
 			return i
 		}
 	}

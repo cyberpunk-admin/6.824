@@ -105,9 +105,12 @@ func CallMapTask(mapf func(string, string) []KeyValue) error {
 				panic(err)
 			}
 		}
-		args.ID = reply.ID
-		args.Filename = reply.Filename
-		if !call("Coordinator.MapTaskFinish", &args, &reply) {
+		argsF := MapArg{}
+		replyF := MapReply{}
+		argsF.ID = reply.ID
+		argsF.Filename = reply.Filename
+		ok := call("Coordinator.MapTaskFinish", &argsF, &replyF)
+		if !ok {
 			for _, tf := range tempFiles {
 				os.Remove(tf.Name())
 			}
