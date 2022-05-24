@@ -122,7 +122,7 @@ func CallMapTask(mapf func(string, string) []KeyValue) error {
 		}
 	}
 
-	return fmt.Errorf("map task failed")
+	return nil
 }
 
 func CallReduceTask(reducef func(string, []string) string) error {
@@ -172,8 +172,10 @@ func CallReduceTask(reducef func(string, []string) string) error {
 			fmt.Fprintf(outFile, "%v %v\n", kva[i].Key, output)
 			i = j
 		}
-		args.ID = reply.ID
-		if !call("Coordinator.ReduceTaskFinish", &args, &reply) {
+		argsF := ReduceArg{}
+		replyF := ReduceReply{}
+		argsF.ID = reply.ID
+		if !call("Coordinator.ReduceTaskFinish", &argsF, &replyF) {
 			os.Remove(outFile.Name())
 		} else {
 			os.Rename(outFile.Name(), fmt.Sprintf("mr-out-%d", reply.ID))
