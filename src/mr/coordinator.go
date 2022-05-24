@@ -62,8 +62,8 @@ func (c *Coordinator) AskForMapTask(args *MapReply, reply *MapReply) error {
 func (c *Coordinator) MapTaskFinish(args *MapArg, reply *MapReply) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	fmt.Println("[Map] a map file complete", reply.Filename)
-	c.mapTasks[args.ID] = TaskComplete
+	fmt.Println("[Map] a map file complete", reply.Filename, reply.ID)
+	c.mapTasks[reply.ID] = TaskComplete
 	fmt.Println(c.mapTasks)
 	for _, st := range c.mapTasks {
 		if st != TaskComplete {
@@ -91,8 +91,8 @@ func (c *Coordinator) AskReduceTask(args *MapReply, reply *ReduceReply) error {
 func (c *Coordinator) ReduceTaskFinish(args *ReduceArg, reply *ReduceReply) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	fmt.Println("[Map] a reduce file complete", args.ID)
 	c.reduceTask[args.ID] = TaskComplete
+	fmt.Println("[Map] a reduce file complete", args.ID)
 	reply.OK = true
 	for _, st := range c.reduceTask {
 		if st != TaskComplete {
