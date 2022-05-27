@@ -85,7 +85,7 @@ type Raft struct {
 }
 
 type LogEntry struct {
-	Log     []byte
+	Log     interface{}
 	RevTerm int
 }
 
@@ -271,11 +271,19 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 // the leader.
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
-	// Your code here (2B).
+	index := -1
+	term := rf.term
+	isLeader := rf.state == leader
+
+	if isLeader {
+		DPrintf("Leader %d: got a new Start task, command: %v\n", rf.me, command)
+		rf.logs = append(rf.logs, LogEntry{command, rf.term})
+		index = len(rf.logs)
+		rf.persist()
+	}
 
 	return index, term, isLeader
 }
