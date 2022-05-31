@@ -124,46 +124,21 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArg, reply *AppendEntriesReply)
 	defer rf.mu.Unlock()
 	DPrintf("Server %d: got AppendEntries from leader %d, args: %+v, current term: %d, current commitIndex: %d, current log: %v\n",
 		rf.me, args.LeaderId, args, rf.term, rf.commitIndex, rf.logs)
+
 	if args.Term < rf.term {
 		reply.Term = rf.term
 		reply.Success = false
+		return
 	} else {
 		rf.electionTimeout.set()
 		rf.convertToFollower(args.Term, args.LeaderId)
-		if args.PrevLogIndex == 0 {
-			reply.Term = rf.term
-			reply.Success = true
-			originEntries := rf.logs
-			lastNewEntry := 0
-			if len(args.Entries) < len(originEntries) {
-				lastNewEntry = len(args.Entries)
-				for i := 0; i < len(args.Entries); i++ {
-					if args.Entries[i].RevTerm != originEntries[i].RevTerm {
-						rf.logs = append(rf.logs[:i], args.Entries[:i]...)
-						lastNewEntry = len(rf.logs)
-						break
-					}
-				}
-			} else {
-				rf.logs = append(rf.logs, args.Entries...)
-				lastNewEntry = len(rf.logs)
-			}
-			if args.LeaderCommit > rf.commitIndex {
-				if args.LeaderCommit < lastNewEntry {
-					rf.commitIndex = args.LeaderCommit
-				} else {
-					rf.commitIndex = lastNewEntry
-				}
-			}
-			rf.persist()
-			// todo
-			return
-		}
+
 		if len(rf.logs) < args.PrevLogIndex {
 			reply.Term = rf.term
 			reply.Success = false
 			reply.ConflictIndex = len(rf.logs)
 			reply.ConflictTerm = -1
+			return
 		} else {
 			preLogTerm := 0
 			if args.PrevLogIndex > 0 {
@@ -173,12 +148,14 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArg, reply *AppendEntriesReply)
 				reply.Term = rf.term
 				reply.Success = false
 				reply.ConflictTerm = preLogTerm
+				reply.ConflictIndex = 0
 				for i := 0; i < len(rf.logs); i++ {
 					if rf.logs[i].RevTerm == preLogTerm {
 						reply.ConflictIndex = i + 1
 						break
 					}
 				}
+				return
 			} else {
 				reply.Term = rf.term
 				reply.Success = true
@@ -201,6 +178,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArg, reply *AppendEntriesReply)
 					rf.commitIndex = int(math.Min(float64(args.LeaderCommit), float64(lastNewEntries)))
 				}
 				rf.persist()
+				rf.applyLogs()
 			}
 		}
 	}
@@ -280,5 +258,16 @@ func (rf *Raft) startRequestVote() {
 				DPrintf("Candidate %d: sending RequestVote to server %d failed\n", rf.me, id)
 			}
 		}(i)
+	}
+}
+
+func (rf *Raft) applyLogs() {
+	if rf.lastApplied < rf.commitIndex {
+		rf.lastApplied += 1
+		msg := ApplyMsg{}
+		msg.CommandValid = true
+		msg.CommandIndex = rf.lastApplied
+		msg.Command = rf.logs[rf.lastApplied]
+		rf.applyCh <- msg
 	}
 }

@@ -82,6 +82,8 @@ type Raft struct {
 	// Volatile state on leaders
 	nextIndex  []int // len(peers)
 	matchIndex []int
+
+	applyCh chan ApplyMsg
 }
 
 type LogEntry struct {
@@ -102,7 +104,6 @@ func (rf *Raft) GetState() (int, bool) {
 		isleader = true
 	}
 	term = rf.term
-	DPrintf("server %d is a %d\n", rf.me, rf.state)
 	return term, isleader
 }
 
@@ -192,15 +193,16 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	defer rf.mu.Unlock()
 
 	if args.Term < rf.term {
-		rf.voteFor = args.CandidateId
-		reply.VoteGranted = true
+		reply.Term = rf.term
+		reply.VoteGranted = false
 		return
 	}
 
 	if args.Term == rf.term {
-		if rf.voteFor != -1 && rf.voteFor != args.CandidateId {
+		if rf.voteFor != -1 {
 			reply.Term = rf.term
 			reply.VoteGranted = false
+			return
 		} else {
 			lastLogIndex := len(rf.logs)
 			lastLogTerm := 0
@@ -210,6 +212,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 			if args.LastLogItem < lastLogTerm {
 				reply.Term = rf.term
 				reply.VoteGranted = false
+				return
 			} else if args.LastLogItem == lastLogTerm {
 				if args.LastLogIndex < lastLogIndex {
 					reply.Term = rf.term
@@ -237,10 +240,12 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		if args.LastLogItem < lastLogTerm {
 			reply.Term = rf.term
 			reply.VoteGranted = false
+			return
 		} else if args.LastLogItem == lastLogTerm {
 			if args.LastLogIndex < lastLogIndex {
 				reply.Term = rf.term
 				reply.VoteGranted = false
+				return
 			} else {
 				reply.Term = rf.term
 				reply.VoteGranted = true
